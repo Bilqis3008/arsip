@@ -45,7 +45,7 @@ $query_m = "SELECT sm.*, d.tanggal_disposisi, d.status_disposisi, b.nama_bidang,
       LEFT JOIN bidang b ON sm.id_bidang = b.id_bidang
       LEFT JOIN seksi s ON sm.id_seksi = s.id_seksi
       LEFT JOIN users u_tujuan ON d.nip_tujuan = u_tujuan.nip 
-      WHERE sm.id_seksi = ? AND sm.id_surat_masuk NOT IN (
+      WHERE sm.id_seksi = ? AND sm.status NOT IN ('selesai', 'diarsipkan') AND sm.id_surat_masuk NOT IN (
          SELECT id_surat_masuk FROM surat_keluar WHERE status = 'diarsipkan' AND id_surat_masuk IS NOT NULL
       )";
 
@@ -126,6 +126,7 @@ usort($mails, function($a, $b) {
             <a href="tindak_lanjut.php" class="menu-item"><svg class="icon"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Kerjakan Balasan</a>
             <div class="menu-label">Monitoring & Arsip</div>
             <a href="monitoring.php" class="menu-item active"><svg class="icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Monitoring Alur</a>
+            <a href="laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
             <div class="menu-label">Account</div>
             <a href="profil.php" class="menu-item"><svg class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil Saya</a>
         </nav>
@@ -136,7 +137,7 @@ usort($mails, function($a, $b) {
 
     <main class="main-content">
         <header class="content-header">
-            <div class="header-title"><h1>Monitoring Surat Dalam Proses</h1></div>
+            <div class="header-title"><h1>Monitoring Surat Dalam Proses (Belum Selesai)</h1></div>
             <div class="user-profile">
                 <div class="user-info">
                     <span class="user-name"><?= htmlspecialchars($admin['nama']) ?></span>
@@ -217,6 +218,8 @@ usort($mails, function($a, $b) {
             <h3 style="margin-bottom: 0.5rem; color: #0f172a; font-size: 1.25rem;">Live Tracking Alur Surat</h3>
             <p id="tracker-subtitle" style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem;"></p>
             
+            <div id="tracker-mail-info" style="background: #f8fafc; padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e2e8f0; margin-bottom: 1.5rem; display: none;"></div>
+
             <div id="tracker-details">
                 <div class="timeline" id="timeline-box"></div>
             </div>
@@ -233,9 +236,30 @@ usort($mails, function($a, $b) {
             const timeline = document.getElementById('timeline-box');
             timeline.innerHTML = '';
 
+            const infoBox = document.getElementById('tracker-mail-info');
+            infoBox.style.display = 'block';
+
             if (tipe === 'masuk') {
                 const mail = suratMasukData.find(m => m.id_surat_masuk == id);
                 document.getElementById('tracker-subtitle').textContent = `Surat Masuk #${mail.nomor_surat}`;
+
+                const tgl = new Date(mail.tanggal_terima).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+                infoBox.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.85rem;">
+                        <div style="grid-column: span 2;">
+                            <span style="color: #64748b; display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem;">Perihal</span>
+                            <strong style="color: #0f172a; font-size: 0.95rem;">${mail.perihal}</strong>
+                        </div>
+                        <div>
+                            <span style="color: #64748b; display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem;">Pengirim</span>
+                            <strong style="color: #0f172a;">${mail.pengirim}</strong>
+                        </div>
+                        <div>
+                            <span style="color: #64748b; display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem;">Tanggal Terima</span>
+                            <strong style="color: #0f172a;">${tgl}</strong>
+                        </div>
+                    </div>
+                `;
 
                 const sekreName = mail.nama_sekretariat || 'Staf Sekretariat';
                 addTimelineItem(`${sekreName} (Sekretariat)`, 'Resepsionis/Sekretariat mencatat agenda baru.', mail.created_at, 'done');
@@ -253,6 +277,24 @@ usort($mails, function($a, $b) {
             } else { // 'keluar'
                 const mail = suratKeluarData.find(m => m.id_surat_keluar == id);
                 document.getElementById('tracker-subtitle').textContent = `Surat Keluar #${mail.nomor_surat_keluar}`;
+
+                const tgl = new Date(mail.tanggal_surat).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+                infoBox.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.85rem;">
+                        <div style="grid-column: span 2;">
+                            <span style="color: #64748b; display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem;">Perihal</span>
+                            <strong style="color: #0f172a; font-size: 0.95rem;">${mail.perihal}</strong>
+                        </div>
+                        <div>
+                            <span style="color: #64748b; display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem;">Tujuan</span>
+                            <strong style="color: #0f172a;">${mail.tujuan}</strong>
+                        </div>
+                        <div>
+                            <span style="color: #64748b; display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem;">Tanggal Surat</span>
+                            <strong style="color: #0f172a;">${tgl}</strong>
+                        </div>
+                    </div>
+                `;
 
                 const senderAdmin = mail.pengirim_user || 'Staf Penulis';
                 const senderUnit = mail.nama_seksi || mail.nama_bidang || '';
