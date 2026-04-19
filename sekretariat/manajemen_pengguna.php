@@ -68,6 +68,18 @@ if (isset($_GET['toggle_status']) && isset($_GET['nip'])) {
     }
 }
 
+// --- HANDLE DELETE ---
+if (isset($_GET['delete_nip'])) {
+    $nip_to_delete = $_GET['delete_nip'];
+    try {
+        $stmt = $pdo->prepare("DELETE FROM users WHERE nip = ?");
+        $stmt->execute([$nip_to_delete]);
+        $success_msg = "Akun pengguna berhasil dihapus!";
+    } catch (PDOException $e) {
+        $error_msg = "Gagal menghapus pengguna: " . $e->getMessage();
+    }
+}
+
 // --- FETCH DATA ---
 // Fetch All Users
 $search = $_GET['search'] ?? '';
@@ -89,6 +101,15 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
 
+// Group users dynamically by role
+$usersByRole = [];
+foreach ($users as $u) {
+    if (!isset($usersByRole[$u['role']])) {
+        $usersByRole[$u['role']] = [];
+    }
+    $usersByRole[$u['role']][] = $u;
+}
+
 // Fetch Bidang list
 $bidang_list = $pdo->query("SELECT * FROM bidang ORDER BY nama_bidang ASC")->fetchAll();
 
@@ -101,12 +122,7 @@ $stmt->execute([$nip_admin]);
 $admin = $stmt->fetch();
 
 // --- PRE-FILL EDIT FORM ---
-$edit_user = null;
-if (isset($_GET['edit_nip'])) {
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE nip = ?");
-    $stmt->execute([$_GET['edit_nip']]);
-    $edit_user = $stmt->fetch();
-}
+// DiHapus: form edit sekarang menggunakan pop up modal dengan javascript
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -115,15 +131,15 @@ if (isset($_GET['edit_nip'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manajemen Pengguna - Arsip Digital</title>
-    <link rel="stylesheet" href="../css/sekretariat/home.css">
-    <link rel="stylesheet" href="../css/sekretariat/manajemen_pengguna.css">
+    <link rel="stylesheet" href="../css/sekretariat/home.css?v=<?= time() ?>">
+    <link rel="stylesheet" href="../css/sekretariat/manajemen_pengguna.css?v=<?= time() ?>">
 </head>
 
 <body>
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
-            <svg class="icon" style="width: 24px; height: 24px;">
+            <svg class="icon">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
             <h2>ARSIP DIGITAL</h2>
@@ -189,7 +205,7 @@ if (isset($_GET['edit_nip'])) {
 
         <div class="sidebar-footer">
             <a href="../auth/logout.php" class="logout-btn">
-                <svg class="icon" viewBox="0 0 24 24" style="stroke: #fda4af;">
+                <svg class="icon" viewBox="0 0 24 24">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
                     <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -216,18 +232,16 @@ if (isset($_GET['edit_nip'])) {
         <div class="content-body">
             <!-- Alerts -->
             <?php if ($success_msg): ?>
-                <div
-                    style="background: rgba(16, 185, 129, 0.1); color: var(--success); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--success); margin-bottom: 1.5rem; font-weight: 600;">
-                    <svg class="icon" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 0.5rem;">
+                <div class="alert-message alert-success">
+                    <svg class="icon alert-icon">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg> <?= $success_msg ?>
                 </div>
             <?php endif; ?>
             <?php if ($error_msg): ?>
-                <div
-                    style="background: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--danger); margin-bottom: 1.5rem; font-weight: 600;">
-                    <svg class="icon" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 0.5rem;">
+                <div class="alert-message alert-danger">
+                    <svg class="icon alert-icon">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="15" y1="9" x2="9" y2="15"></line>
                         <line x1="9" y1="9" x2="15" y2="15"></line>
@@ -237,8 +251,7 @@ if (isset($_GET['edit_nip'])) {
 
             <!-- Tabs -->
             <div class="module-tabs">
-                <button class="tab-btn active" onclick="switchTab('daftar')"><svg class="icon"
-                        style="margin-right: 0.5rem;">
+                <button class="tab-btn active" onclick="switchTab('daftar')"><svg class="icon">
                         <line x1="8" y1="6" x2="21" y2="6"></line>
                         <line x1="8" y1="12" x2="21" y2="12"></line>
                         <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -246,7 +259,7 @@ if (isset($_GET['edit_nip'])) {
                         <line x1="3" y1="12" x2="3.01" y2="12"></line>
                         <line x1="3" y1="18" x2="3.01" y2="18"></line>
                     </svg> Daftar Pengguna</button>
-                <button class="tab-btn" onclick="switchTab('tambah')"><svg class="icon" style="margin-right: 0.5rem;">
+                <button class="tab-btn" onclick="switchTab('tambah')"><svg class="icon">
                         <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                         <circle cx="8.5" cy="7" r="4"></circle>
                         <line x1="20" y1="8" x2="20" y2="14"></line>
@@ -265,76 +278,89 @@ if (isset($_GET['edit_nip'])) {
                         <form method="GET" class="filter-group">
                             <select name="role" onchange="this.form.submit()">
                                 <option value="">Semua Role</option>
-                                <option value="kepala_dinas" <?= $role_filter === 'kepala_dinas' ? 'selected' : '' ?>>
-                                    Kepala Dinas</option>
-                                <option value="admin_bidang" <?= $role_filter === 'admin_bidang' ? 'selected' : '' ?>>Admin
-                                    Bidang</option>
-                                <option value="bagian_perencanaan" <?= $role_filter === 'bagian_perencanaan' ? 'selected' : '' ?>>Perencanaan</option>
-                                <option value="bagian_keuangan" <?= $role_filter === 'bagian_keuangan' ? 'selected' : '' ?>>Keuangan</option>
+                                <option value="sekretariat" <?= $role_filter === 'sekretariat' ? 'selected' : '' ?>>Sekretariat</option>
+                                <option value="kepala_dinas" <?= $role_filter === 'kepala_dinas' ? 'selected' : '' ?>>Kepala Dinas</option>
+                                <option value="admin_bidang" <?= $role_filter === 'admin_bidang' ? 'selected' : '' ?>>Admin Bidang</option>
                                 <option value="staff" <?= $role_filter === 'staff' ? 'selected' : '' ?>>Staff</option>
                             </select>
                         </form>
                     </div>
-                    <div class="data-table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Pengguna</th>
-                                    <th>Role & Jabatan</th>
-                                    <th>Unit Kerja</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($users as $u): ?>
-                                    <tr>
-                                        <td>
-                                            <div class="user-info-cell">
-                                                <div class="user-avatar"><?= strtoupper(substr($u['nama'], 0, 1)) ?></div>
-                                                <div>
-                                                    <div style="font-weight: 700;"><?= htmlspecialchars($u['nama']) ?></div>
-                                                    <div style="font-size: 0.75rem; color: var(--text-muted);">NIP:
-                                                        <?= htmlspecialchars($u['nip']) ?></div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="badge badge-role"><?= ucwords(str_replace('_', ' ', $u['role'])) ?>
-                                            </div>
-                                            <div style="font-size: 0.8rem; margin-top: 0.25rem;">
-                                                <?= htmlspecialchars($u['jabatan']) ?></div>
-                                        </td>
-                                        <td>
-                                            <div style="font-size: 0.85rem; font-weight: 600;">
-                                                <?= htmlspecialchars($u['nama_bidang'] ?: '-') ?></div>
-                                            <div style="font-size: 0.75rem; color: var(--text-muted);">
-                                                <?= htmlspecialchars($u['nama_seksi'] ?: '-') ?></div>
-                                        </td>
-                                        <td><span
-                                                class="badge badge-<?= $u['status'] ?>"><?= ucfirst($u['status']) ?></span>
-                                        </td>
-                                        <td class="action-btns">
-                                            <a href="?edit_nip=<?= $u['nip'] ?>#tambah" class="action-btn btn-edit"
-                                                title="Edit"><svg class="icon" style="width: 16px; height: 16px;">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg></a>
-                                            <a href="?toggle_status=<?= $u['status'] ?>&nip=<?= $u['nip'] ?>"
-                                                class="action-btn btn-toggle"
-                                                title="<?= $u['status'] === 'aktif' ? 'Nonaktifkan' : 'Aktifkan' ?>"
-                                                onclick="return confirm('Apakah Anda yakin ingin <?= $u['status'] === 'aktif' ? 'menonaktifkan' : 'mengaktifkan' ?> akun ini?')"><svg
-                                                    class="icon"
-                                                    style="width: 16px; height: 16px; stroke: <?= $u['status'] === 'aktif' ? 'var(--danger)' : 'var(--success)' ?>;">
-                                                    <circle cx="12" cy="12" r="10"></circle>
-                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                </svg></a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
+
+                    <?php if (empty($usersByRole)): ?>
+                        <div class="empty-state">
+                            <svg class="icon empty-state-icon"><path d="M12 2A10 10 0 1 0 22 12 10 10 0 0 0 12 2Z"></path><path d="M15 9.4 9 15.4"></path><path d="M9 9.4l6 6"></path></svg>
+                            <p class="empty-state-text">Belum ada data pengguna</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($usersByRole as $roleKey => $roleUsers): ?>
+                            <?php 
+                                $roleName = ucwords(str_replace('_', ' ', $roleKey)); 
+                                $showBidang = !in_array($roleKey, ['sekretariat', 'kepala_dinas']);
+                                $showSeksi = !in_array($roleKey, ['sekretariat', 'kepala_dinas', 'admin_bidang']);
+                            ?>
+                            <div class="role-group">
+                                <div class="role-header">
+                                    <div class="role-title-wrapper">
+                                        <div class="role-icon">
+                                            <svg class="icon"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                        </div>
+                                        <h3><?= htmlspecialchars($roleName) ?></h3>
+                                    </div>
+                                    <span class="badge badge-role"><?= count($roleUsers) ?> Pengguna</span>
+                                </div>
+                                <div class="data-table-container">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr class="table-header">
+                                                <th>NIP</th>
+                                                <th>Nama</th>
+                                                <th>Jabatan</th>
+                                                <?php if ($showBidang): ?><th>Bidang</th><?php endif; ?>
+                                                <?php if ($showSeksi): ?><th>Seksi Bidang</th><?php endif; ?>
+                                                <th>Role</th>
+                                                <th class="text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($roleUsers as $u): ?>
+                                                <tr>
+                                                    <td class="nip-cell"><?= htmlspecialchars($u['nip']) ?></td>
+                                                    <td>
+                                                        <div class="user-info-cell">
+                                                            <div class="user-avatar"><?= strtoupper(substr($u['nama'], 0, 1)) ?></div>
+                                                            <div style="font-weight: 600;"><?= htmlspecialchars($u['nama']) ?></div>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="jabatan-text"><?= htmlspecialchars($u['jabatan'] ?? '-') ?></div>
+                                                    </td>
+                                                    <?php if ($showBidang): ?>
+                                                        <td><div class="bidang-text"><?= htmlspecialchars($u['nama_bidang'] ?? '-') ?></div></td>
+                                                    <?php endif; ?>
+                                                    <?php if ($showSeksi): ?>
+                                                        <td><div class="seksi-text"><?= htmlspecialchars($u['nama_seksi'] ?? '-') ?></div></td>
+                                                    <?php endif; ?>
+                                                    <td><span class="badge badge-role"><?= htmlspecialchars($roleName) ?></span></td>
+                                                    <td class="action-btns">
+                                                        <button type="button" onclick='viewDetail(<?= htmlspecialchars(json_encode($u, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, "UTF-8") ?>)' class="action-btn btn-view" title="Detail">
+                                                            <svg class="icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                        </button>
+                                                        <button type="button" onclick='openEditModal(<?= htmlspecialchars(json_encode($u, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, "UTF-8") ?>)' class="action-btn btn-edit" title="Edit">
+                                                            <svg class="icon"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                        </button>
+                                                        <button type="button" onclick="confirmDelete('<?= $u['nip'] ?>')" class="action-btn btn-delete" title="Hapus">
+                                                            <svg class="icon"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+
                 </div>
             </section>
 
@@ -342,81 +368,64 @@ if (isset($_GET['edit_nip'])) {
             <section id="section-tambah" class="module-section">
                 <div class="card">
                     <div class="card-header">
-                        <h2><?= $edit_user ? 'Edit Data Pengguna' : 'Tambah Pengguna Baru' ?></h2>
-                        <p><?= $edit_user ? 'Perbarui informasi akun pengguna yang sudah terdaftar.' : 'Buat akun baru untuk pegawai sesuai dengan role dan unit kerja.' ?>
-                        </p>
+                        <h2>Tambah Pengguna Baru</h2>
+                        <p>Buat akun baru untuk pegawai sesuai dengan role dan unit kerja.</p>
                     </div>
                     <form method="POST">
-                        <input type="hidden" name="action" value="<?= $edit_user ? 'update_user' : 'save_user' ?>">
+                        <input type="hidden" name="action" value="save_user">
                         <div class="form-grid">
                             <div class="form-group">
-                                <label>NIP Pegawai <span style="color: var(--danger);">*</span></label>
-                                <input type="text" name="nip" required placeholder="Contoh: 19880101..."
-                                    value="<?= $edit_user ? htmlspecialchars($edit_user['nip']) : '' ?>" <?= $edit_user ? 'readonly' : '' ?>>
+                                <label>NIP Pegawai <span class="text-danger">*</span></label>
+                                <input type="text" name="nip" required placeholder="Contoh: 19880101...">
                             </div>
                             <div class="form-group">
-                                <label>Nama Lengkap <span style="color: var(--danger);">*</span></label>
-                                <input type="text" name="nama" required placeholder="Nama serta gelar (jika ada)"
-                                    value="<?= $edit_user ? htmlspecialchars($edit_user['nama']) : '' ?>">
+                                <label>Nama Lengkap <span class="text-danger">*</span></label>
+                                <input type="text" name="nama" required placeholder="Nama serta gelar (jika ada)">
                             </div>
                             <div class="form-group">
-                                <label>Email Institusi <span style="color: var(--danger);">*</span></label>
-                                <input type="email" name="email" required placeholder="email@kemendikbud.go.id"
-                                    value="<?= $edit_user ? htmlspecialchars($edit_user['email']) : '' ?>">
+                                <label>Email Institusi <span class="text-danger">*</span></label>
+                                <input type="email" name="email" required placeholder="email@kemendikbud.go.id">
                             </div>
                             <div class="form-group">
                                 <label>Nomor HP/WhatsApp</label>
-                                <input type="text" name="no_hp" placeholder="08xxxxxx"
-                                    value="<?= $edit_user ? htmlspecialchars($edit_user['no_hp']) : '' ?>">
+                                <input type="text" name="no_hp" placeholder="08xxxxxx">
                             </div>
                             <div class="form-group">
-                                <label>Role Sistem <span style="color: var(--danger);">*</span></label>
-                                <select name="role" required>
-                                    <option value="kepala_dinas" <?= ($edit_user && $edit_user['role'] === 'kepala_dinas') ? 'selected' : '' ?>>Kepala Dinas</option>
-                                    <option value="admin_bidang" <?= ($edit_user && $edit_user['role'] === 'admin_bidang') ? 'selected' : '' ?>>Admin Bidang</option>
-                                    <!-- <option value="bagian_perencanaan" <?= ($edit_user && $edit_user['role'] === 'bagian_perencanaan') ? 'selected' : '' ?>>Bagian
-                                        Perencanaan</option>
-                                    <option value="bagian_keuangan" <?= ($edit_user && $edit_user['role'] === 'bagian_keuangan') ? 'selected' : '' ?>>Bagian Keuangan
-                                    </option> -->
-                                    <option value="staff" <?= ($edit_user && $edit_user['role'] === 'staff') ? 'selected' : '' ?>>Staff Pelaksana</option>
+                                <label>Role Sistem <span class="text-danger">*</span></label>
+                                <select name="role" id="add-role" required onchange="toggleFieldsVisibility(this.value, 'add')">
+                                    <option value="kepala_dinas">Kepala Dinas</option>
+                                    <option value="admin_bidang">Admin Bidang</option>
+                                    <option value="staff">Staff Pelaksana</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Jabatan</label>
-                                <input type="text" name="jabatan" placeholder="Contoh: Analis Kebijakan Ahli Muda"
-                                    value="<?= $edit_user ? htmlspecialchars($edit_user['jabatan']) : '' ?>">
+                                <input type="text" name="jabatan" placeholder="Contoh: Analis Kebijakan Ahli Muda">
                             </div>
-                            <div class="form-group">
+                            <div class="form-group d-none" id="add-container-bidang">
                                 <label>Bidang / Bagian</label>
-                                <select name="id_bidang" id="select-bidang">
+                                <select name="id_bidang" id="add-select-bidang" onchange="updateSeksiOptions(this.value, 'add')">
                                     <option value="">-- Pilih Bidang --</option>
                                     <?php foreach ($bidang_list as $b): ?>
-                                        <option value="<?= $b['id_bidang'] ?>" <?= ($edit_user && $edit_user['id_bidang'] == $b['id_bidang']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($b['nama_bidang']) ?></option>
+                                        <option value="<?= $b['id_bidang'] ?>"><?= htmlspecialchars($b['nama_bidang']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="form-group" id="container-seksi">
+                            <div class="form-group d-none" id="add-container-seksi">
                                 <label>Seksi / Sub Bagian</label>
-                                <select name="id_seksi" id="select-seksi">
+                                <select name="id_seksi" id="add-select-seksi">
                                     <option value="">-- Pilih Seksi --</option>
                                     <!-- Options loaded via JS -->
                                 </select>
                             </div>
                             <div class="form-group full-width">
-                                <label><?= $edit_user ? 'Ganti Password (Kosongkan jika tidak diubah)' : 'Password Akun *' ?></label>
-                                <input type="password" name="password" <?= $edit_user ? '' : 'required' ?>
-                                    placeholder="Minimal 8 karakter">
+                                <label>Password Akun *</label>
+                                <input type="password" name="password" required placeholder="Minimal 8 karakter">
                             </div>
                         </div>
                         <div class="form-actions">
-                            <?php if ($edit_user): ?>
-                                <a href="manajemen_pengguna.php" class="btn btn-ghost">Batal Edit</a>
-                            <?php else: ?>
-                                <button type="reset" class="btn btn-ghost">Reset</button>
-                            <?php endif; ?>
-                            <button type="submit"
-                                class="btn btn-primary"><?= $edit_user ? 'Perbarui Data' : 'Buat Akun Pengguna' ?></button>
+                            <button type="reset" class="btn btn-ghost">Reset</button>
+                            <button type="submit" class="btn btn-primary">Buat Akun Pengguna</button>
                         </div>
                     </form>
                 </div>
@@ -424,33 +433,161 @@ if (isset($_GET['edit_nip'])) {
         </div>
     </main>
 
+    <!-- Detail Modal Overlay -->
+    <div id="detailModal" class="modal-overlay">
+        <div class="modal-card w-500">
+            <div class="modal-header">
+                <h3 class="modal-title">Detail Pengguna</h3>
+                <button onclick="closeModal()" class="btn-close"><svg class="icon"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            <div id="modalContent" class="modal-body">
+                <!-- Content handled by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal Overlay -->
+    <div id="editModal" class="modal-overlay z-1010">
+        <div class="modal-card w-650">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Data Pengguna</h3>
+                <button type="button" onclick="closeEditModal()" class="btn-close"><svg class="icon"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action" value="update_user">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>NIP Pegawai</label>
+                        <input type="text" name="nip" id="edit_nip" required readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Nama Lengkap <span class="text-danger">*</span></label>
+                        <input type="text" name="nama" id="edit_nama" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Institusi <span class="text-danger">*</span></label>
+                        <input type="email" name="email" id="edit_email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nomor HP/WhatsApp</label>
+                        <input type="text" name="no_hp" id="edit_no_hp">
+                    </div>
+                    <div class="form-group">
+                        <label>Role Sistem <span class="text-danger">*</span></label>
+                        <select name="role" id="edit_role" required onchange="toggleFieldsVisibility(this.value, 'edit')">
+                            <option value="sekretariat">Sekretariat</option>
+                            <option value="kepala_dinas">Kepala Dinas</option>
+                            <option value="admin_bidang">Admin Bidang</option>
+                            <option value="bagian_perencanaan">Perencanaan</option>
+                            <option value="bagian_keuangan">Keuangan</option>
+                            <option value="staff">Staff Pelaksana</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Jabatan</label>
+                        <input type="text" name="jabatan" id="edit_jabatan">
+                    </div>
+                    <div class="form-group" id="edit_container_bidang">
+                        <label>Bidang / Bagian</label>
+                        <select name="id_bidang" id="edit_id_bidang" onchange="updateSeksiOptions(this.value, 'edit')">
+                            <option value="">-- Pilih Bidang --</option>
+                            <?php foreach ($bidang_list as $b): ?>
+                                <option value="<?= $b['id_bidang'] ?>"><?= htmlspecialchars($b['nama_bidang']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group" id="edit_container_seksi">
+                        <label>Seksi / Sub Bagian</label>
+                        <select name="id_seksi" id="edit_id_seksi">
+                            <option value="">-- Pilih Seksi --</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Ganti Password (Kosongkan jika tidak diubah)</label>
+                        <input type="password" name="password" placeholder="Minimal 8 karakter">
+                    </div>
+                </div>
+                <div class="form-actions modal-footer">
+                    <button type="button" onclick="closeEditModal()" class="btn btn-ghost">Batal Edit</button>
+                    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Modal Overlay -->
+    <div id="deleteModal" class="modal-overlay z-1010">
+        <div class="modal-card w-400">
+            <div class="delete-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3 class="delete-text">Hapus Pengguna</h3>
+            <p class="delete-subtext">Apakah Anda yakin ingin menghapus pengguna ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <div class="modal-footer center">
+                <button type="button" onclick="closeDeleteModal()" class="btn btn-ghost">Batal</button>
+                <a href="#" id="confirmDeleteBtn" class="btn btn-danger">Ya, Hapus</a>
+            </div>
+        </div>
+    </div>
+
     <script>
         const seksiData = <?= json_encode($seksi_list) ?>;
-        const currentSeksi = <?= json_encode($edit_user ? $edit_user['id_seksi'] : null) ?>;
 
-        function updateSeksi(bidangId) {
-            const seksiSelect = document.getElementById('select-seksi');
-            const seksiContainer = document.getElementById('container-seksi');
+        function updateSeksiOptions(bidangId, mode = 'add', preselectedSeksi = null) {
+            const seksiSelect = document.getElementById(mode === 'edit' ? 'edit_id_seksi' : 'add-select-seksi');
+            const seksiContainer = document.getElementById(mode === 'edit' ? 'edit_container_seksi' : 'add-container-seksi');
             seksiSelect.innerHTML = '<option value="">-- Pilih Seksi --</option>';
+
+            if (!bidangId) return;
 
             const filtered = seksiData.filter(s => s.id_bidang == bidangId);
 
             if (filtered.length > 0) {
-                seksiContainer.style.display = 'block';
+                // If the role allows seksi logic, show it
+                const roleValue = document.getElementById(mode === 'edit' ? 'edit_role' : 'add-role').value;
+                if (roleValue !== 'admin_bidang' && roleValue !== 'sekretariat' && roleValue !== 'kepala_dinas') {
+                    seksiContainer.classList.remove('d-none');
+                }
+                
                 filtered.forEach(s => {
                     const opt = document.createElement('option');
                     opt.value = s.id_seksi;
                     opt.textContent = s.nama_seksi;
-                    if (s.id_seksi == currentSeksi) opt.selected = true;
+                    if (preselectedSeksi && s.id_seksi == preselectedSeksi) opt.selected = true;
                     seksiSelect.appendChild(opt);
                 });
             } else {
-                seksiContainer.style.display = 'none';
-                seksiSelect.value = "";
+                seksiContainer.classList.add('d-none');
             }
         }
 
-        document.getElementById('select-bidang').addEventListener('change', (e) => updateSeksi(e.target.value));
+        function toggleFieldsVisibility(role, mode = 'add') {
+            const bidangContainer = document.getElementById(mode === 'edit' ? 'edit_container_bidang' : 'add-container-bidang');
+            const seksiContainer = document.getElementById(mode === 'edit' ? 'edit_container_seksi' : 'add-container-seksi');
+            const bidangSelect = document.getElementById(mode === 'edit' ? 'edit_id_bidang' : 'add-select-bidang');
+            const seksiSelect = document.getElementById(mode === 'edit' ? 'edit_id_seksi' : 'add-select-seksi');
+
+            if (role === 'sekretariat' || role === 'kepala_dinas') {
+                bidangContainer.classList.add('d-none');
+                seksiContainer.classList.add('d-none');
+                bidangSelect.value = '';
+                seksiSelect.value = '';
+                seksiSelect.innerHTML = '<option value="">-- Pilih Seksi --</option>';
+            } else if (role === 'admin_bidang') {
+                bidangContainer.classList.remove('d-none');
+                seksiContainer.classList.add('d-none');
+                seksiSelect.value = '';
+                seksiSelect.innerHTML = '<option value="">-- Pilih Seksi --</option>';
+            } else {
+                bidangContainer.classList.remove('d-none');
+                seksiContainer.classList.add('d-none');
+                if (bidangSelect.value) {
+                    updateSeksiOptions(bidangSelect.value, mode, seksiSelect.value);
+                }
+            }
+        }
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -464,12 +601,106 @@ if (isset($_GET['edit_nip'])) {
             if (targetSec) targetSec.classList.add('active');
         }
 
-        // Init Seksi if Edit or if Bidang is somehow selected
-        const initialBidang = document.getElementById('select-bidang').value;
-        if (initialBidang) updateSeksi(initialBidang);
+        function viewDetail(user) {
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('modalContent');
+            
+            // Format role name
+            const roleName = user.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-        // Check hash
-        if (window.location.hash === '#tambah') switchTab('tambah');
+            content.innerHTML = `
+                <div class="detail-user-header">
+                    <div class="detail-avatar">
+                        ${user.nama.substring(0,1).toUpperCase()}
+                    </div>
+                    <div>
+                        <div class="detail-user-name">${user.nama}</div>
+                        <div class="detail-user-email">${user.email || '-'}</div>
+                    </div>
+                </div>
+                <div class="detail-info-grid">
+                    <div class="detail-label">NIP</div>
+                    <div class="detail-value">${user.nip}</div>
+                    
+                    <div class="detail-label">Nomor HP</div>
+                    <div class="detail-value">${user.no_hp || '-'}</div>
+                    
+                    <div class="detail-label">Role</div>
+                    <div><span class="badge badge-role">${roleName}</span></div>
+                    
+                    <div class="detail-label">Jabatan</div>
+                    <div class="detail-value">${user.jabatan || '-'}</div>
+                    
+                    <div class="detail-label">Bidang</div>
+                    <div class="detail-value">${user.nama_bidang || '-'}</div>
+                    
+                    <div class="detail-label">Seksi</div>
+                    <div class="detail-value">${user.nama_seksi || '-'}</div>
+
+                    <div class="detail-label">Status Akun</div>
+                    <div><span class="badge badge-${user.status} detail-status">${user.status.charAt(0).toUpperCase() + user.status.slice(1)}</span></div>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        function openEditModal(user) {
+            const modal = document.getElementById('editModal');
+            
+            // Fill fields gracefully handling nulls
+            document.getElementById('edit_nip').value = user.nip;
+            document.getElementById('edit_nama').value = user.nama;
+            document.getElementById('edit_email').value = user.email || '';
+            document.getElementById('edit_no_hp').value = user.no_hp || '';
+            document.getElementById('edit_role').value = user.role;
+            document.getElementById('edit_jabatan').value = user.jabatan || '';
+            document.getElementById('edit_id_bidang').value = user.id_bidang || '';
+            
+            // Adjust visibility
+            toggleFieldsVisibility(user.role, 'edit');
+            
+            // Fill seksi options if related
+            if (user.id_bidang) {
+                updateSeksiOptions(user.id_bidang, 'edit', user.id_seksi);
+            } else {
+                document.getElementById('edit_id_seksi').innerHTML = '<option value="">-- Pilih Seksi --</option>';
+            }
+
+            modal.classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+        function confirmDelete(nip) {
+            const modal = document.getElementById('deleteModal');
+            document.getElementById('confirmDeleteBtn').href = '?delete_nip=' + nip;
+            modal.classList.add('active');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) closeEditModal();
+        });
+        document.getElementById('deleteModal').addEventListener('click', function(e) {
+            if (e.target === this) closeDeleteModal();
+        });
+
+        // Initialize visibility on page load for Add Tab
+        toggleFieldsVisibility(document.getElementById('add-role').value, 'add');
     </script>
 </body>
 
