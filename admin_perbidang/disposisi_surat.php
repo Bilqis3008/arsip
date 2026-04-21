@@ -65,8 +65,8 @@ $error = '';
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$id_surat, $nip_admin, $id_bidang, $id_seksi, $nip_penerima, $isi_disposisi, $sifat_disposisi, $tanggal_disposisi]);
 
-        // 2. Update Surat Masuk Status and current Section (Automatically Archive)
-        $stmt = $pdo->prepare("UPDATE surat_masuk SET status = 'selesai', id_seksi = ?, perlu_balasan = 1 WHERE id_surat_masuk = ?");
+        // 2. Update Surat Masuk Status and current Section
+        $stmt = $pdo->prepare("UPDATE surat_masuk SET status = 'diteruskan', id_seksi = ?, perlu_balasan = 1 WHERE id_surat_masuk = ?");
         $stmt->execute([$id_seksi, $id_surat]);
 
         $pdo->commit();
@@ -103,7 +103,7 @@ $error = '';
             <a href="surat_keluar.php" class="menu-item"><svg class="icon"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg> Surat Keluar</a>
 
             <div class="menu-label">Reporting & Account</div>
-            <a href="laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
+            <a href="monitoring_laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
             <a href="profil.php" class="menu-item"><svg class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil Saya</a>
         </nav>
         <div class="sidebar-footer">

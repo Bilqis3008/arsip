@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
     $id_approve = $_POST['approve_id'];
     $stmt = $pdo->prepare("UPDATE surat_keluar SET status = 'diarsipkan' WHERE id_surat_keluar = ? AND uploaded_by IN (SELECT nip FROM users WHERE id_bidang = ?)");
     if ($stmt->execute([$id_approve, $id_bidang])) {
-        echo "<script>alert('Surat keluar telah disetujui dan langsung diarsipkan!'); window.location='surat_keluar.php?tab=verified';</script>";
+        header("Location: surat_keluar.php?tab=verified");
         exit;
     }
 }
@@ -64,6 +64,52 @@ $mails = $stmt->fetchAll();
         .badge-status.status-pending_approval { background: #fef3c7; color: #b45309; }
         .badge-status.status-disetujui { background: #dcfce7; color: #16a34a; }
         .badge-status.status-diarsipkan { background: #e0e7ff; color: #4338ca; }
+
+        /* Custom Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .modal-card {
+            background: #ffffff;
+            width: 100%;
+            max-width: 450px;
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            text-align: center;
+            transform: translateY(0);
+            animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .modal-icon {
+            width: 70px;
+            height: 70px;
+            background: #fef3c7;
+            color: #d97706;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+        .modal-title { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-bottom: 0.75rem; }
+        .modal-message { font-size: 0.95rem; color: #64748b; line-height: 1.6; margin-bottom: 2rem; }
+        .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .btn-modal { padding: 0.85rem; border-radius: 0.75rem; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-cancel { background: #f1f5f9; color: #64748b; }
+        .btn-cancel:hover { background: #e2e8f0; }
+        .btn-confirm { background: var(--primary); color: white; }
+        .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px var(--primary-glow); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -82,7 +128,7 @@ $mails = $stmt->fetchAll();
             <a href="monitoring_tindakLanjut.php" class="menu-item"><svg class="icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Monitoring Seksi</a>
             <a href="surat_keluar.php" class="menu-item active"><svg class="icon"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg> Surat Keluar</a>
             <div class="menu-label">Reporting & Account</div>
-            <a href="laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
+            <a href="monitoring_laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
             <a href="profil.php" class="menu-item"><svg class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil Saya</a>
         </nav>
         <div class="sidebar-footer">
@@ -140,9 +186,6 @@ $mails = $stmt->fetchAll();
                                     <td>
                                         <div style="font-weight: 700; color: var(--navy);"><?= htmlspecialchars($m['perihal']) ?></div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">No. Surat Keluar: <?= htmlspecialchars($m['nomor_surat_keluar']) ?> • Tujuan: <?= htmlspecialchars($m['tujuan']) ?></div>
-                                        <?php if ($m['file_path']): ?>
-                                            <a href="../uploads/surat_keluar/<?= htmlspecialchars($m['file_path']) ?>" target="_blank" style="font-size: 0.8rem; font-weight: 800; color: var(--primary); text-decoration: none;"><svg class="icon" style="width:14px;height:14px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Buka Draft PDF</a>
-                                        <?php endif; ?>
                                     </td>
                                     <td><?= htmlspecialchars($m['pengirim_staf']) ?><br><span style="font-size:0.75rem;color:var(--text-muted);"><?= htmlspecialchars($m['nama_seksi'] ?: 'Seksi / Sub-Bagian') ?></span></td>
                                     <td>
@@ -153,14 +196,26 @@ $mails = $stmt->fetchAll();
                                         <span class="badge-status status-<?= $m['status'] ?>"><?= $badgeText ?></span>
                                     </td>
                                     <td style="text-align: center;">
-                                        <?php if ($tab === 'pending'): ?>
-                                            <form method="POST" onsubmit="return confirm('Apakah Anda yakin draft surat ini sudah sesuai?\nSurat akan langsung ditandai selesai dan diarsipkan secara permanen.')">
-                                                <input type="hidden" name="approve_id" value="<?= $m['id_surat_keluar'] ?>">
-                                                <button type="submit" class="btn-action" style="background: var(--primary); color: white; border: none; cursor: pointer; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 700; width: 100%; white-space: nowrap;"><svg class="icon" style="margin-right:0.25rem;"><polyline points="20 6 9 17 4 12"></polyline></svg> Arsipkan</button>
-                                            </form>
-                                        <?php else: ?>
-                                            <a href="monitoring_tindakLanjut.php?search=<?= urlencode($m['nomor_surat_keluar']) ?>" class="btn-action" style="background: #f1f5f9; color: var(--navy); border: 1px solid var(--border); text-decoration: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 700; display: inline-flex; align-items: center;"><svg class="icon" style="margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Track</a>
-                                        <?php endif; ?>
+                                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                            <?php if ($m['file_path']): ?>
+                                                <a href="../uploads/surat_keluar/<?= htmlspecialchars($m['file_path']) ?>" target="_blank" class="btn-action" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; text-decoration: none; display: inline-flex; align-items: center; justify-content: center;" title="Preview PDF">
+                                                    <svg class="icon" viewBox="0 0 24 24" style="width:16px; height:16px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                </a>
+                                            <?php endif; ?>
+
+                                            <?php if ($tab === 'pending'): ?>
+                                                <div style="flex: 1;">
+                                                    <button type="button" 
+                                                            onclick="openConfirmModal(<?= $m['id_surat_keluar'] ?>, '<?= htmlspecialchars(addslashes($m['perihal'])) ?>')" 
+                                                            class="btn-action" 
+                                                            style="background: var(--primary); color: white; border: none; cursor: pointer; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 700; width: 100%; white-space: nowrap; height: 34px;">
+                                                        <svg class="icon" style="margin-right:0.25rem;"><polyline points="20 6 9 17 4 12"></polyline></svg> Arsipkan
+                                                    </button>
+                                                </div>
+                                            <?php else: ?>
+                                                <a href="monitoring_tindakLanjut.php?search=<?= urlencode($m['nomor_surat_keluar']) ?>" class="btn-action" style="background: #f1f5f9; color: var(--navy); border: 1px solid var(--border); text-decoration: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 700; display: inline-flex; align-items: center; white-space: nowrap; height: 34px;"><svg class="icon" style="margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Track</a>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -170,5 +225,46 @@ $mails = $stmt->fetchAll();
             </div>
         </div>
     </main>
+
+    <!-- Hidden Form for submission -->
+    <form id="approveForm" method="POST" style="display: none;">
+        <input type="hidden" name="approve_id" id="approve_target_id">
+    </form>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-icon">
+                <svg viewBox="0 0 24 24" style="width:32px; height:32px; fill:none; stroke:currentColor; stroke-width:2.5;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
+            <h3 class="modal-title">Konfirmasi Pengarsipan</h3>
+            <p class="modal-message">Apakah Anda yakin draft surat <strong id="modal-perihal" style="color:#0f172a;"></strong> ini sudah sesuai? Surat akan diarsipkan secara permanen.</p>
+            <div class="modal-actions">
+                <button type="button" onclick="closeConfirmModal()" class="btn-modal btn-cancel">Batal</button>
+                <button type="button" onclick="submitApprove()" class="btn-modal btn-confirm">Ya, Arsipkan</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openConfirmModal(id, perihal) {
+            document.getElementById('approve_target_id').value = id;
+            document.getElementById('modal-perihal').innerText = '"' + perihal + '"';
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+        }
+
+        function submitApprove() {
+            document.getElementById('approveForm').submit();
+        }
+
+        // Close on escape
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeConfirmModal();
+        });
+    </script>
 </body>
 </html>

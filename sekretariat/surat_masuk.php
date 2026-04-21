@@ -9,8 +9,11 @@ if (!isset($_SESSION['user_nip']) || $_SESSION['user_role'] !== 'sekretariat') {
 }
 
 $nip = $_SESSION['user_nip'];
-$success_msg = "";
-$error_msg = "";
+$success_msg = $_SESSION['success_msg'] ?? "";
+$error_msg = $_SESSION['error_msg'] ?? "";
+
+// Clear messages after reading
+unset($_SESSION['success_msg'], $_SESSION['error_msg']);
 
 // --- HANDLE FORM SUBMISSION (INPUT) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_mail') {
@@ -37,30 +40,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     // File Upload handling
     $file_path = null;
-    if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/surat_masuk/';
-        if (!is_dir($upload_dir))
-            mkdir($upload_dir, 0777, true);
+    $upload_error = false;
 
-        $file_extension = pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION);
-        $filename = time() . '_' . preg_replace("/[^a-zA-Z0-9]/", "_", $perihal) . '.' . $file_extension;
-        $target_file = $upload_dir . $filename;
+    if (isset($_FILES['file_surat']) && $_FILES['file_surat']['name'] !== '') {
+        if ($_FILES['file_surat']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../uploads/surat_masuk/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-        if (move_uploaded_file($_FILES['file_surat']['tmp_name'], $target_file)) {
-            $file_path = 'uploads/surat_masuk/' . $filename;
+            $file_extension = pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION);
+            $filename = time() . '_' . preg_replace("/[^a-zA-Z0-9]/", "_", $perihal) . '.' . $file_extension;
+            $target_file = $upload_dir . $filename;
+
+            if (move_uploaded_file($_FILES['file_surat']['tmp_name'], $target_file)) {
+                $file_path = 'uploads/surat_masuk/' . $filename;
+            }
+        } else {
+            $upload_error = true;
+            if ($_FILES['file_surat']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['file_surat']['error'] === UPLOAD_ERR_FORM_SIZE) {
+                $error_msg = "Ukuran file terlalu besar! Silakan perkecil ukuran file atau kompres terlebih dahulu.";
+            } else {
+                $error_msg = "Terjadi kesalahan saat mengunggah file (Kode: " . $_FILES['file_surat']['error'] . ")";
+            }
         }
     }
 
-    try {
-        $stmt = $pdo->prepare("INSERT INTO surat_masuk (nomor_agenda, nomor_surat, tanggal_surat, tanggal_terima, pengirim, perihal, sifat_surat, lampiran, file_path, input_by, status, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tercatat', ?)");
-        $stmt->execute([$nomor_agenda, $nomor_surat, $tanggal_surat, $tanggal_terima, $pengirim, $perihal, $sifat_surat, $lampiran, $file_path, $nip, $keterangan]);
-        $success_msg = "Surat masuk berhasil disimpan!";
-    } catch (PDOException $e) {
-        if ($e->getCode() == 23000) {
-            $error_msg = "Nomor Agenda sudah terdaftar dalam sistem!";
-        } else {
-            $error_msg = "Gagal menyimpan surat: " . $e->getMessage();
+    if (!$upload_error) {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO surat_masuk (nomor_agenda, nomor_surat, tanggal_surat, tanggal_terima, pengirim, perihal, sifat_surat, lampiran, file_path, input_by, status, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tercatat', ?)");
+            $stmt->execute([$nomor_agenda, $nomor_surat, $tanggal_surat, $tanggal_terima, $pengirim, $perihal, $sifat_surat, $lampiran, $file_path, $nip, $keterangan]);
+            $_SESSION['success_msg'] = "Surat masuk berhasil disimpan!";
+            header("Location: surat_masuk.php");
+            exit;
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                $_SESSION['error_msg'] = "Nomor Agenda sudah terdaftar dalam sistem!";
+            } else {
+                $_SESSION['error_msg'] = "Gagal menyimpan surat: " . $e->getMessage();
+            }
+            header("Location: surat_masuk.php");
+            exit;
         }
+    } else {
+        $_SESSION['error_msg'] = $error_msg;
+        header("Location: surat_masuk.php");
+        exit;
     }
 }
 
@@ -71,16 +94,19 @@ if (isset($_GET['delete_id']) && is_numeric($_GET['delete_id'])) {
     $check = $pdo->prepare("SELECT file_path, status FROM surat_masuk WHERE id_surat_masuk = ?");
     $check->execute([$del_id]);
     $del_row = $check->fetch();
-    if ($del_row && $del_row['status'] === 'tercatat') {
+    // Allow delete if 'tercatat' or just 'didispokan' (to Kadin) but not yet processed by internal sectors
+    if ($del_row && in_array($del_row['status'], ['tercatat', 'didispokan'])) {
         // Delete file if exists
         if ($del_row['file_path'] && file_exists('../' . $del_row['file_path'])) {
             unlink('../' . $del_row['file_path']);
         }
         $pdo->prepare("DELETE FROM surat_masuk WHERE id_surat_masuk = ?")->execute([$del_id]);
-        $success_msg = "Surat masuk berhasil dihapus.";
+        $_SESSION['success_msg'] = "Surat masuk berhasil dihapus.";
     } else {
-        $error_msg = "Surat yang sudah diproses tidak dapat dihapus.";
+        $_SESSION['error_msg'] = "Surat yang sudah diproses oleh Bidang tidak dapat dihapus.";
     }
+    header("Location: surat_masuk.php");
+    exit;
 }
 
 // --- HANDLE EDIT (UPDATE) ---
@@ -113,10 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $stmt = $pdo->prepare("UPDATE surat_masuk SET nomor_agenda=?, nomor_surat=?, tanggal_surat=?, tanggal_terima=?, pengirim=?, perihal=?, sifat_surat=?, lampiran=?, keterangan=?, file_path=? WHERE id_surat_masuk=?");
         $stmt->execute([$nomor_agenda, $nomor_surat, $tanggal_surat, $tanggal_terima, $pengirim, $perihal, $sifat_surat, $lampiran, $keterangan, $new_file_path, $edit_id]);
-        $success_msg = "Data surat berhasil diperbarui!";
+        $_SESSION['success_msg'] = "Data surat berhasil diperbarui!";
     } catch (PDOException $e) {
-        $error_msg = "Gagal memperbarui: " . $e->getMessage();
+        $_SESSION['error_msg'] = "Gagal memperbarui: " . $e->getMessage();
     }
+    header("Location: surat_masuk.php");
+    exit;
 }
 
 // --- FETCH DATA FOR TABLE (DAFTAR & RIWAYAT) ---
@@ -535,8 +563,9 @@ $admin = $stmt->fetch();
                                         <line x1="12" y1="3" x2="12" y2="15"></line>
                                     </svg>
                                     <p id="file-name">Klik untuk memilih file atau seret ke sini</p>
+                                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.25rem;">Maksimal 10MB (PDF, JPG, PNG)</p>
                                     <input type="file" id="file-input" name="file_surat" hidden
-                                        onchange="document.getElementById('file-name').innerText = this.files[0].name">
+                                        onchange="validateFile(this)">
                                 </div>
                             </div>
                             <div class="form-group full-width">
@@ -675,6 +704,22 @@ $admin = $stmt->fetch();
         document.getElementById('inputModal').onclick = e => { if (e.target === document.getElementById('inputModal')) closeInputModal(); };
         document.getElementById('viewModal').onclick = e => { if (e.target === document.getElementById('viewModal')) closeViewModal(); };
         document.getElementById('editModal').onclick = e => { if (e.target === document.getElementById('editModal')) closeEditModal(); };
+
+        function validateFile(input) {
+            const fileName = input.files[0].name;
+            const fileSize = input.files[0].size / 1024 / 1024; // in MB
+            const fileLabel = document.getElementById('file-name');
+            
+            if (fileSize > 10) {
+                alert('Ukuran file terlalu besar (' + fileSize.toFixed(2) + ' MB). Maksimal batas unggah adalah 10 MB.');
+                input.value = '';
+                fileLabel.innerText = 'Klik untuk memilih file atau seret ke sini';
+                fileLabel.style.color = 'var(--danger)';
+            } else {
+                fileLabel.innerText = fileName;
+                fileLabel.style.color = 'var(--primary)';
+            }
+        }
 
         <?php if ($success_msg || $error_msg): ?>
             switchTab('daftar');

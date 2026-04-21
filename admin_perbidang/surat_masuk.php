@@ -23,14 +23,24 @@ $id_bidang = $admin['id_bidang'];
 if ($tab === 'unread') {
     $query = "SELECT sm.*, d.isi_disposisi as instruksi_kadin, d.tanggal_disposisi as tgl_dispo_kadin
               FROM surat_masuk sm 
-              LEFT JOIN disposisi d ON sm.id_surat_masuk = d.id_surat_masuk AND d.id_bidang = sm.id_bidang
+              LEFT JOIN disposisi d ON d.id_disposisi = (
+                  SELECT MIN(id_disposisi) FROM disposisi 
+                  WHERE id_surat_masuk = sm.id_surat_masuk 
+                  AND id_bidang = sm.id_bidang
+                  AND nip_pemberi IN (SELECT nip FROM users WHERE role = 'kepala_dinas')
+              )
               WHERE sm.id_bidang = ? AND sm.status = 'didispokan' 
               AND (sm.perihal LIKE ? OR sm.nomor_surat LIKE ?) 
               ORDER BY sm.created_at DESC";
 } else {
     $query = "SELECT sm.*, d.isi_disposisi as instruksi_kadin
               FROM surat_masuk sm 
-              LEFT JOIN disposisi d ON sm.id_surat_masuk = d.id_surat_masuk AND d.id_bidang = sm.id_bidang
+              LEFT JOIN disposisi d ON d.id_disposisi = (
+                  SELECT MIN(id_disposisi) FROM disposisi 
+                  WHERE id_surat_masuk = sm.id_surat_masuk 
+                  AND id_bidang = sm.id_bidang
+                  AND nip_pemberi IN (SELECT nip FROM users WHERE role = 'kepala_dinas')
+              )
               WHERE sm.id_bidang = ? AND sm.status IN ('diteruskan', 'selesai', 'diarsipkan')
               AND (sm.perihal LIKE ? OR sm.nomor_surat LIKE ?) 
               ORDER BY sm.created_at DESC";
@@ -42,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_direct'])) {
     $id_seksi_arsip = $_POST['id_seksi'];
     $stmt = $pdo->prepare("UPDATE surat_masuk SET status = 'selesai', id_seksi = ?, perlu_balasan = 0 WHERE id_surat_masuk = ? AND id_bidang = ?");
     if ($stmt->execute([$id_seksi_arsip, $id_target, $id_bidang])) {
-        echo "<script>alert('Surat berhasil diarsipkan ke Seksi terpilih!'); window.location='surat_masuk.php?tab=unread';</script>";
+        header("Location: surat_masuk.php?tab=unread");
         exit;
     }
 }
@@ -83,7 +93,7 @@ $mails = $stmt->fetchAll();
             <a href="surat_keluar.php" class="menu-item"><svg class="icon"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg> Surat Keluar</a>
 
             <div class="menu-label">Reporting & Account</div>
-            <a href="laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
+            <a href="monitoring_laporan.php" class="menu-item"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
             <a href="profil.php" class="menu-item"><svg class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil Saya</a>
         </nav>
         <div class="sidebar-footer">

@@ -43,10 +43,9 @@ if ($jenis_laporan === 'surat_masuk' || $jenis_laporan === 'total_surat') {
           LEFT JOIN seksi s ON d.id_seksi = s.id_seksi
           LEFT JOIN users u_tujuan ON d.nip_tujuan = u_tujuan.nip 
           WHERE DATE(sm.tanggal_terima) BETWEEN ? AND ? 
-          AND sm.status = 'selesai' 
-          AND sm.id_bidang = ?
+          AND sm.status IN ('selesai', 'diarsipkan') 
           ORDER BY sm.created_at DESC");
-    $stmt_m->execute([$date_start, $date_end, $id_bidang]);
+    $stmt_m->execute([$date_start, $date_end]);
     $report_masuk = $stmt_m->fetchAll();
 }
 
@@ -58,9 +57,8 @@ if ($jenis_laporan === 'surat_keluar' || $jenis_laporan === 'total_surat') {
           LEFT JOIN bidang b ON u.id_bidang = b.id_bidang 
           WHERE DATE(sk.tanggal_surat) BETWEEN ? AND ? 
           AND sk.status = 'diarsipkan' 
-          AND u.id_bidang = ? 
           ORDER BY sk.created_at DESC");
-    $stmt_k->execute([$date_start, $date_end, $id_bidang]);
+    $stmt_k->execute([$date_start, $date_end]);
     $report_keluar = $stmt_k->fetchAll();
 }
 
@@ -76,12 +74,12 @@ while ($row = $stmt_admin->fetch()) {
     $admin_bidang_list[$row['id_bidang']] = $row['nama'];
 }
 
-$stmt_total_m = $pdo->prepare("SELECT COUNT(*) FROM surat_masuk WHERE status = 'selesai' AND id_bidang = ?");
-$stmt_total_m->execute([$id_bidang]);
+$stmt_total_m = $pdo->prepare("SELECT COUNT(*) FROM surat_masuk WHERE status IN ('selesai', 'diarsipkan')");
+$stmt_total_m->execute();
 $total_masuk_all = $stmt_total_m->fetchColumn();
 
-$stmt_total_k = $pdo->prepare("SELECT COUNT(*) FROM surat_keluar sk LEFT JOIN users u ON sk.uploaded_by = u.nip WHERE sk.status = 'diarsipkan' AND u.id_bidang = ?");
-$stmt_total_k->execute([$id_bidang]);
+$stmt_total_k = $pdo->prepare("SELECT COUNT(*) FROM surat_keluar sk WHERE sk.status = 'diarsipkan'");
+$stmt_total_k->execute();
 $total_keluar_all = $stmt_total_k->fetchColumn();
 $total_surat_all = $total_masuk_all + $total_keluar_all;
 // --- END BACKEND ---
@@ -149,7 +147,7 @@ $total_surat_all = $total_masuk_all + $total_keluar_all;
             <a href="surat_keluar.php" class="menu-item"><svg class="icon"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg> Surat Keluar</a>
 
             <div class="menu-label">Reporting & Account</div>
-            <a href="laporan.php" class="menu-item active"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
+            <a href="monitoring_laporan.php" class="menu-item active"><svg class="icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> Laporan</a>
             <a href="profil.php" class="menu-item"><svg class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil Saya</a>
         </nav>
         <div class="sidebar-footer">
@@ -167,7 +165,7 @@ $total_surat_all = $total_masuk_all + $total_keluar_all;
                     <span class="user-name"><?= htmlspecialchars($admin['nama']) ?></span>
                     <span class="user-role">Admin <?= htmlspecialchars($admin['nama_bidang'] ?? 'Bidang Terkait') ?></span>
                 </div>
-                <div class="user-avatar"><?= strtoupper(substr($admin['nama_bidang'], 0, 1)) ?></div>
+                <div class="user-avatar"><?= strtoupper(substr($admin['nama_bidang'] ?? 'B', 0, 1)) ?></div>
             </div>
         </header>
 

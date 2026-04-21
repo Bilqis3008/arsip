@@ -435,7 +435,7 @@ $admin = $stmt->fetch();
 
     <!-- Detail Modal Overlay -->
     <div id="detailModal" class="modal-overlay">
-        <div class="modal-card w-500">
+        <div class="modal-card w-750">
             <div class="modal-header">
                 <h3 class="modal-title">Detail Pengguna</h3>
                 <button onclick="closeModal()" class="btn-close"><svg class="icon"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
@@ -619,26 +619,38 @@ $admin = $stmt->fetch();
                     </div>
                 </div>
                 <div class="detail-info-grid">
-                    <div class="detail-label">NIP</div>
-                    <div class="detail-value">${user.nip}</div>
-                    
-                    <div class="detail-label">Nomor HP</div>
-                    <div class="detail-value">${user.no_hp || '-'}</div>
-                    
-                    <div class="detail-label">Role</div>
-                    <div><span class="badge badge-role">${roleName}</span></div>
-                    
-                    <div class="detail-label">Jabatan</div>
-                    <div class="detail-value">${user.jabatan || '-'}</div>
-                    
-                    <div class="detail-label">Bidang</div>
-                    <div class="detail-value">${user.nama_bidang || '-'}</div>
-                    
-                    <div class="detail-label">Seksi</div>
-                    <div class="detail-value">${user.nama_seksi || '-'}</div>
-
-                    <div class="detail-label">Status Akun</div>
-                    <div><span class="badge badge-${user.status} detail-status">${user.status.charAt(0).toUpperCase() + user.status.slice(1)}</span></div>
+                    <div class="detail-col">
+                        <div class="detail-item">
+                            <div class="detail-label">NIP</div>
+                            <div class="detail-value">${user.nip}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">No. HP</div>
+                            <div class="detail-value">${user.no_hp || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Role</div>
+                            <div><span class="badge badge-role">${roleName}</span></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Status</div>
+                            <div><span class="badge badge-${user.status} detail-status">${user.status.charAt(0).toUpperCase() + user.status.slice(1)}</span></div>
+                        </div>
+                    </div>
+                    <div class="detail-col">
+                        <div class="detail-item">
+                            <div class="detail-label">Jabatan</div>
+                            <div class="detail-value">${user.jabatan || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Bidang</div>
+                            <div class="detail-value">${user.nama_bidang || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Seksi</div>
+                            <div class="detail-value">${user.nama_seksi || '-'}</div>
+                        </div>
+                    </div>
                 </div>
             `;
             

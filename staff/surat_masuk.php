@@ -18,15 +18,16 @@ if (!$id_seksi) {
 }
 
 $search = $_GET['search'] ?? '';
+$tab = $_GET['tab'] ?? 'pending'; // pending | history
 
 // --- FETCH TASK LIST ---
 $query = "SELECT sm.*, 
-          d.isi_disposisi as instruksi_admin, 
-          d.tanggal_disposisi as tgl_dispo,
+          sk.id_surat_keluar as reply_id,
+          sk.status as reply_status,
           d.nip_penerima,
           u.nama as pemberi_nama,
           p.nama as penerima_nama,
-          sk.status as reply_status
+          sk.status as reply_status_sk
           FROM surat_masuk sm
           LEFT JOIN (
               SELECT * FROM disposisi WHERE id_disposisi IN (SELECT MAX(id_disposisi) FROM disposisi WHERE id_seksi = ? GROUP BY id_surat_masuk)
@@ -34,7 +35,9 @@ $query = "SELECT sm.*,
           LEFT JOIN users u ON d.nip_pemberi = u.nip
           LEFT JOIN users p ON d.nip_penerima = p.nip
           LEFT JOIN surat_keluar sk ON sm.id_surat_masuk = sk.id_surat_masuk
-          WHERE sm.id_seksi = ? AND sm.perlu_balasan = 1 AND sm.status NOT IN ('selesai', 'diarsipkan') AND (sm.perihal LIKE ? OR sm.nomor_surat LIKE ?)
+          WHERE sm.id_seksi = ? AND sm.perlu_balasan = 1 
+          AND " . ($tab === 'pending' ? "(sm.status NOT IN ('selesai', 'diarsipkan') AND sk.id_surat_keluar IS NULL)" : "(sm.status IN ('selesai', 'diarsipkan') OR sk.id_surat_keluar IS NOT NULL)") . "
+          AND (sm.perihal LIKE ? OR sm.nomor_surat LIKE ?)
           ORDER BY sm.tanggal_terima DESC LIMIT 50";
 
 $stmt = $pdo->prepare($query);
@@ -75,25 +78,49 @@ $tasks = $stmt->fetchAll();
 
     <main class="main-content">
         <header class="content-header">
-            <div class="header-title"><h1>Daftar Surat Tugas (Seksi)</h1></div>
+            <div class="header-title">
+                <h1>Agenda Surat Tugas</h1>
+                <p>Kelola surat yang ditugaskan ke seksi Anda.</p>
+            </div>
             <div class="explorer-bar">
                 <form method="GET" class="search-field">
+                    <input type="hidden" name="tab" value="<?= $tab ?>">
                     <svg class="icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    <input type="text" name="search" placeholder="Cari perihal, nomor surat, atau pengirim..." value="<?= htmlspecialchars($search) ?>">
+                    <input type="text" name="search" placeholder="Cari perihal, nomor surat..." value="<?= htmlspecialchars($search) ?>">
                 </form>
             </div>
         </header>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs-container" style="margin: 0 2rem 1.5rem; display: flex; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 1px;">
+            <a href="surat_masuk.php?tab=pending" class="tab-link <?= $tab === 'pending' ? 'active' : '' ?>" style="padding: 0.75rem 1.5rem; text-decoration: none; color: var(--text-muted); font-weight: 700; font-size: 0.9rem; position: relative; transition: all 0.2s;">
+                <svg class="icon" style="width:16px; height:16px; margin-right:6px; vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Belum Dikerjakan
+                <?php if($tab === 'pending'): ?><div style="position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background: var(--primary); border-radius: 3px;"></div><?php endif; ?>
+            </a>
+            <a href="surat_masuk.php?tab=history" class="tab-link <?= $tab === 'history' ? 'active' : '' ?>" style="padding: 0.75rem 1.5rem; text-decoration: none; color: var(--text-muted); font-weight: 700; font-size: 0.9rem; position: relative; transition: all 0.2s;">
+                <svg class="icon" style="width:16px; height:16px; margin-right:6px; vertical-align: middle;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                Riwayat Selesai
+                <?php if($tab === 'history'): ?><div style="position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background: var(--primary); border-radius: 3px;"></div><?php endif; ?>
+            </a>
+        </div>
+
+        <style>
+            .tab-link.active { color: var(--navy) !important; }
+            .tab-link:hover { color: var(--primary) !important; background: #f8fafc; border-radius: 0.5rem 0.5rem 0 0; }
+        </style>
 
         <section class="task-list">
             <?php if (empty($tasks)): ?>
                 <div style="text-align: center; padding: 5rem; background: white; border-radius: 2rem; border: 1px solid var(--border);">
                     <svg class="icon" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 1.5rem;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                    <p style="font-weight: 700; color: var(--text-muted);">Belum ada surat yang ditugaskan ke seksi ini.</p>
+                    <p style="font-weight: 700; color: var(--text-muted);">
+                        <?= $tab === 'pending' ? 'Belum ada surat yang ditugaskan ke seksi ini.' : 'Belum ada riwayat tugas yang tuntas.' ?>
+                    </p>
                 </div>
             <?php else: ?>
                 <?php foreach ($tasks as $t): 
-                    // Task is only COMPLETE for staff if their REPLY is archived
-                    $is_selesai = ($t['reply_status'] === 'diarsipkan');
+                    $is_selesai = ($tab === 'history');
                     $is_mine = ($t['nip_penerima'] === $_SESSION['user_nip']);
                 ?>
                     <div class="task-item" style="<?= $is_mine ? 'border-left: 5px solid var(--primary);' : '' ?>">
@@ -102,31 +129,37 @@ $tasks = $stmt->fetchAll();
                             <div class="month"><?= date('M Y', strtotime($t['tanggal_terima'])) ?></div>
                         </div>
                         <div class="task-info">
-                            <?php if ($t['status'] === 'selesai' || $t['status'] === 'diarsipkan'): ?>
-                                <span class="badge-status b-finished">Selesai</span>
-                            <?php elseif ($t['reply_status'] === 'pending_approval'): ?>
-                                <span class="badge-status" style="background: #fef3c7; color: #d97706; padding: 0.35rem 0.75rem; border-radius: 0.5rem; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">Menunggu Verifikasi</span>
-                            <?php else: ?>
-                                <span class="badge-status b-pending"><?= $is_mine ? 'Tugas Anda' : 'Tugas Seksi' ?></span>
-                            <?php endif; ?>
-                            
-                            <h4><?= htmlspecialchars($t['perihal']) ?></h4>
-                            <p>No: <?= htmlspecialchars($t['nomor_surat']) ?></p>
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                                <?php if ($is_selesai): ?>
+                                    <?php if (in_array($t['reply_status_sk'], ['disetujui', 'diarsipkan'])): ?>
+                                        <span style="background: #ecfdf5; color: #059669; padding: 0.1rem 0.6rem; border-radius: 1rem; font-size: 0.7rem; font-weight: 800; border: 1px solid #10b981;">✓ SELESAI</span>
+                                    <?php else: ?>
+                                        <span style="background: #fffbeb; color: #d97706; padding: 0.1rem 0.6rem; border-radius: 1rem; font-size: 0.7rem; font-weight: 800; border: 1px solid #f59e0b;">⏳ SEDANG DIVERIFIKASI</span>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span class="task-badge"><?= $is_mine ? 'Tugas Anda' : 'Tugas Seksi' ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <h3 class="task-perihal" style="margin: 0;"><?= htmlspecialchars($t['perihal']) ?></h3>
+                            <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-muted);">No: <?= htmlspecialchars($t['nomor_surat']) ?></p>
                             <?php if ($t['penerima_nama']): ?>
-                                <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--primary); font-weight: 700;">
+                                <div style="margin-top: 0.35rem; font-size: 0.75rem; color: var(--primary); font-weight: 700;">
                                     <svg class="icon" style="width: 14px; height: 14px; vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                                     Ditugaskan ke: <?= htmlspecialchars($t['penerima_nama']) ?>
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <div class="sender-box">
-                            <svg class="icon" style="color: var(--primary);"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                            <span><?= htmlspecialchars($t['pengirim']) ?></span>
+                        <div class="sender-box" style="flex: 0 0 200px;">
+                            <svg class="icon" style="color: var(--primary); margin-right: 0.5rem;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                            <span style="font-size: 0.9rem;"><?= htmlspecialchars($t['pengirim']) ?></span>
                         </div>
-                        <div style="text-align: right;">
-                            <a href="tindak_lanjut.php?id=<?= $t['id_surat_masuk'] ?>" class="btn-work">
-                                <svg class="icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> 
-                                <?= $is_selesai ? 'Lihat Arsip' : 'Kerjakan' ?>
+                        <div class="task-actions" style="margin-left: auto;">
+                            <a href="tindak_lanjut.php?id=<?= $t['id_surat_masuk'] ?>" class="btn-work" style="<?= $is_selesai ? 'background: var(--navy); color: var(--primary); border: none; padding: 0.75rem 1.5rem;' : '' ?>">
+                                <?php if ($is_selesai): ?>
+                                    <svg class="icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> Lihat Arsip
+                                <?php else: ?>
+                                    <svg class="icon"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path></svg> Kerjakan
+                                <?php endif; ?>
                             </a>
                         </div>
                     </div>

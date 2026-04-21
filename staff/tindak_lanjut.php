@@ -39,10 +39,13 @@ $stmt = $pdo->prepare("SELECT d.*, u.nama, u.role
 $stmt->execute([$id_surat]);
 $instructions = $stmt->fetchAll();
 
-// Check if already has a pending or approved reply
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM surat_keluar WHERE id_surat_masuk = ? AND status IN ('pending_approval', 'diarsipkan')");
+// Check if already has a reply and get its status
+$stmt = $pdo->prepare("SELECT status FROM surat_keluar WHERE id_surat_masuk = ? ORDER BY id_surat_keluar DESC LIMIT 1");
 $stmt->execute([$id_surat]);
-$has_reply = $stmt->fetchColumn() > 0;
+$reply_data = $stmt->fetch();
+$has_reply = (bool)$reply_data;
+$is_reply_verified = $has_reply && in_array($reply_data['status'], ['disetujui', 'diarsipkan']);
+$is_fully_done = $is_reply_verified || in_array($mail['status'], ['selesai', 'diarsipkan']);
 
 // --- HANDLE FULFILLMENT (UPLOAD REPLY) ---
 $error = '';
@@ -184,19 +187,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_fulfillment'])
                         </div>
                         <button type="submit" name="submit_fulfillment" class="btn-finish">Kirim Untuk Verifikasi</button>
                     </form>
-                <?php elseif ($has_reply && $mail['status'] !== 'selesai'): ?>
+                <?php elseif ($has_reply && !$is_fully_done): ?>
                     <div style="text-align: center; padding: 2rem;">
-                        <svg class="icon" style="width: 60px; height: 60px; color: var(--accent); margin-bottom: 1.5rem;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        <h3 style="font-weight: 800; color: var(--navy);">Menunggu Verifikasi</h3>
-                        <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.75rem;">Balasan telah diunggah. Tugas akan ditandai selesai setelah disetujui oleh Admin Bidang.</p>
-                        <a href="surat_masuk.php" class="btn-finish" style="margin-top: 2rem; display: block; text-decoration: none; background: var(--navy);">Kembali ke Daftar Tugas</a>
+                        <svg class="icon" style="width: 60px; height: 60px; color: #f59e0b; margin-bottom: 1.5rem;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <h3 style="font-weight: 800; color: #0f172a;">Menunggu Verifikasi</h3>
+                        <p style="font-size: 0.9rem; color: #64748b; margin-top: 0.75rem;">Balasan telah diunggah. Tugas akan ditandai selesai setelah disetujui oleh Admin Bidang.</p>
+                        <a href="surat_masuk.php" class="btn-finish" style="margin-top: 2rem; display: block; text-decoration: none; background: #0f172a;">Kembali ke Daftar Tugas</a>
                     </div>
                 <?php else: ?>
                     <div style="text-align: center; padding: 2rem;">
-                        <svg class="icon" style="width: 60px; height: 60px; color: var(--primary); margin-bottom: 1.5rem;"><circle cx="12" cy="12" r="10"></circle><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <h3 style="font-weight: 800; color: var(--navy);">Selesai Dikerjakan</h3>
-                        <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.75rem;">Surat ini telah disetujui dan diarsipkan secara resmi.</p>
-                        </div>
+                        <svg class="icon" style="width: 60px; height: 60px; color: #10b981; margin-bottom: 1.5rem;"><circle cx="12" cy="12" r="10"></circle><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        <h3 style="font-weight: 900; color: #059669;">Tugas Tuntas Terverifikasi</h3>
+                        <p style="font-size: 0.95rem; color: #64748b; margin-top: 0.75rem;">Surat balasan Anda telah disetujui oleh Admin dan secara resmi masuk ke dalam arsip sistem.</p>
+                        <a href="surat_masuk.php" class="btn-finish" style="margin-top: 2rem; display: block; text-decoration: none; background: #059669;">Kembali ke Riwayat</a>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>

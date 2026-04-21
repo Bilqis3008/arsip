@@ -507,6 +507,12 @@ input[readonly] {
     overflow-y: auto;
 }
 
+.modal-card.w-750 {
+    width: 750px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
 .modal-card.w-400 {
     width: 400px;
     text-align: center;
@@ -593,9 +599,38 @@ input[readonly] {
 
 .detail-info-grid {
     display: grid;
-    grid-template-columns: 130px 1fr;
-    gap: 0.75rem;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding-top: 1.5rem;
+    position: relative;
+}
+
+.detail-col {
+    display: flex;
+    flex-direction: column;
+    padding: 0 1.5rem;
+}
+
+.detail-col:first-child {
+    padding-left: 0;
+    border-right: 1.5px solid var(--border);
+}
+
+.detail-col:last-child {
+    padding-right: 0;
+}
+
+.detail-item {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 0.5rem;
     align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.detail-item:last-child {
+    border-bottom: none;
 }
 
 .detail-label {
